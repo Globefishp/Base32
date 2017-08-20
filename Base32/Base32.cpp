@@ -10,7 +10,7 @@ using namespace std;
 #define IOERR 3
 #define funcERR 4
 #define PutIn 10 //10的倍数
-#define ReadBytes 20//不同流大小编码的文件是不同的,解码需要指定流大小
+#define ReadBytes 1020//流大小的BUG已经修复,指定10的倍数,否则结果不正确
 typedef char* (*pEnc)(char*);
 
 char Base32EncL[33] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -54,7 +54,7 @@ char* Enc(char* argv, bool binary = false) {
 	pOverflow = sp + StrCharSize;
 	dProc = (unsigned char*)(od);
 	dSrc = od;
-	dOverflow = od + ((8 * StrCharSize * sizeof(wchar_t) / sizeof(char) + 4) / 5 + 1);//向上取整再加一
+	dOverflow = od + ((8 * StrCharSize * sizeof(wchar_t) / sizeof(char) + 4) / 5 + 1);//向上取整,末尾\0
 	//各类指针初始化
 
 	//for (unsigned int i = 0; i < StrCharSize + 1; i++) {
@@ -164,7 +164,7 @@ int Dec(char* argv) {
 	void* dSrc, *dOverflow;//存储译文首地址和溢出地址(最后一位地址+1)
 	if (od == NULL) return allocERR;//检测空指针
 
-	dProc = (unsigned char*)(od)+1;//初始置于第一个宽字符的高8位
+	dProc = (unsigned char*)(od) + 1;//初始置于第一个宽字符的高8位
 	dSrc = (unsigned char*)od;
 	dOverflow = (unsigned char*)od + (StrCharSize * 5 / 16) * sizeof(wchar_t) / sizeof(char) + 1;
 	//各类指针初始化
@@ -189,21 +189,21 @@ int Dec(char* argv) {
 	}
 	wcout << od;
 	delete[] od;//释放内存与指针
-	od, dProc, dSrc, dOverflow, pProc, pSrc, pOverflow = NULL;
+	//od, dProc, dSrc, dOverflow, pProc, pSrc, pOverflow = NULL;//指针让程序自己回收.
 	return 0;
 }
 
 int main(int argc, char* argv[])
 {
 	setlocale(LC_ALL, "chs");
-	int Err = 1;
-	if (argc != 3 && argc != 4) printf("Usage: Base32 [-Enc|-Dec|fEnc|fDec] \"string|file\" [\"output file\"]\n");
+	int Err = 0;//Err部分未完成
+	if (argc != 3 && argc != 4) printf("Usage: Base32 [-Enc|-Dec|fEnc|fDec] \"String|File\" [\"output file\"]\n");
 	if (argc == 3) {
 		if (_stricmp(argv[1], "-Enc") == 0) {
 			char* p;
 			p = Enc(argv[2]);
-			if (p == NULL) { printf("Function ERROR!"); return funcERR; }
-			else { printf(p); delete p; p = NULL; }
+			if (p == NULL) { printf("Function ERROR!\n"); delete[] p; return funcERR; }
+			else { printf(p); delete[] p; p = NULL; }//保险起见用[](实际上并不需要)
 		} 
 		else if (_stricmp(argv[1], "-Dec") == 0) {
 			Dec(argv[2]);
@@ -213,14 +213,14 @@ int main(int argc, char* argv[])
 		if(_stricmp(argv[1], "-fEnc")==0) {
 			ifstream inFile(argv[2], ios::binary);
 			ofstream otFile(argv[3], ios::binary);
-			if (otFile.is_open() == false) { printf("IO ERROR,Can't open %s!", argv[3]); return IOERR; }
+			if (otFile.is_open() == false) { printf("IO ERROR,Can't open %s!\n", argv[3]); return IOERR; }
 			char* fp = new(nothrow) char[ReadBytes];
-			if (fp==NULL) { printf("Memory ERROR!"); return allocERR; }
+			if (fp==NULL) { printf("Memory ERROR!\n"); return allocERR; }
 			char* wp = NULL;
 			do {
 				inFile.read(fp, ReadBytes);
 				wp = Enc(fp, true);
-				if (wp == NULL) { printf("Memory ERROR!"); return allocERR; }
+				if (wp == NULL) { printf("Memory ERROR!\n"); return allocERR; }
 				otFile.write(wp, strlen(wp));
 				delete wp;//重要!释放内存
 			} while (!inFile.eof());
